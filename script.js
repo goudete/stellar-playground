@@ -1,59 +1,6 @@
 import StellarSdk from "stellar-sdk";
 import fetch from "node-fetch";
 
-
-
-async function sendPayment(senderKeypair, receiverPubKey) {
-    
-    const server = new StellarSdk.Server("https://horizon-testnet.stellar.org");
-    const amount = "100";
-
-      const [
-        {
-          max_fee: { mode: fee },
-        },
-        sender,
-      ] = await Promise.all([
-        server.feeStats(),
-        server.loadAccount(senderKeypair),
-      ]);
-
-
-    const transaction = new StellarSdk.TransactionBuilder(sender, {
-        fee,
-        networkPassphrase: StellarSdk.Networks.TESTNET,
-    })
-        .addOperation(
-            // This operation sends the destination account XLM
-            StellarSdk.Operation.payment({
-                destination: receiverPubKey,
-                asset: StellarSdk.Asset.native(),
-                amount,
-            }),
-        )
-        .setTimeout(30)
-        .build();
-    transaction.sign(sender);
-
-    try {
-        // Submit the transaction to the Stellar network.
-        const transactionResult = await server.submitTransaction(transaction);
-        console.log(transactionResult);
-
-        return {
-            message: 'Success',
-            amount
-        }
-
-    } catch (e) {
-        console.error("Oh no! Something went wrong.");
-        console.error(e.response.data.detail);
-        console.error(e.response.data.extras.result_codes);
-        console.error(e.response.data.type);
-        return e.response.data;
-    }
-}
-
 ////////////////////////////////////////
 /*
 Balances
@@ -96,10 +43,98 @@ async function createTestAccounts() {
     }
 }
 
-(async () => {
-    const { sender, receiver } = await createTestAccounts();
-    console.log(JSON.stringify(sender, receiver));
 
-    const result = await sendPayment(sender.publicKey(), receiver.publicKey());
-    console.log(JSON.stringify(result));
+async function sendPayment(senderPubKey, receiverPubKey, senderSeceret, receiverSecret) {
+
+    const server = new StellarSdk.Server("https://horizon-testnet.stellar.org");
+    const AMOUNT = "1000";
+
+
+    const senderKeyPair = StellarSdk.Keypair.fromSecret(senderSeceret);
+    const receiverKeyPair = StellarSdk.Keypair.fromSecret(receiverSecret);
+
+    let sender;
+    let receiver;
+    try {
+        [
+            sender,
+            receiver
+        ] = await Promise.all([
+            server.loadAccount(senderKeyPair.publicKey()),
+            server.loadAccount(receiverKeyPair.publicKey())
+        ]);
+
+    } catch (error) {
+        if (error instanceof StellarSdk.NotFoundError) {
+            return {
+                message: 'The account does not exist!',
+                Error: error
+            }
+        } else {
+            return {
+                message: 'Error getting accounts',
+                Error: error
+            }
+        }
+    }
+
+    try {
+        const transaction = new StellarSdk.TransactionBuilder(sender, {
+            fee: StellarSdk.BASE_FEE,
+            networkPassphrase: StellarSdk.Networks.TESTNET,
+        })
+            .addOperation(
+                StellarSdk.Operation.payment({
+                    destination: receiverPubKey,
+                    asset: StellarSdk.Asset.native(),
+                    amount: AMOUNT,
+                }),
+            )
+            .setTimeout(180)
+            .build();
+
+        // THIS IS THE PROBLEMATIC LINE
+        transaction.sign(sender);
+
+        console.log({
+            message: 'Transaction object',
+            transaction
+        });
+
+    } catch (err) {
+        return {
+            message: 'Failure while creating transaction object',
+            Error: err,
+        }
+    }
+
+    // Submit the transaction to the Stellar network.
+    try {
+        const transactionResult = await server.submitTransaction(transaction);
+        console.log('🚀🚀🚀 Transaction Result: ', transactionResult);
+
+        recoupLumens(senderPubKey.secret());
+
+        return {
+            message: `Success! ${senderPubKey} paid ${receiverPubKey} ${AMOUNT} XLM`,
+            amount: AMOUNT
+        };
+
+    } catch (err) {
+        return {
+            message: 'Failure while submitting transaction to Stellar network',
+            Error: err
+        };
+    }
+}
+
+(async () => {
+    const SENDER_PUB_KEY = 'GAFYZELIQ7WKORXKJDGJXLKS3ESZYYEOQPVFQI4UYU47S2FSQF4AZIPN';
+    const RECEIVER_PUB_KEY = 'GAN2LVEAZAT7YUO3HXX2PS6S4QVMMJQ2ODZG5K3ZAWUWT3LXFI56S3TH';
+
+    // const { sender, receiver } = await createTestAccounts();
+    // console.log(JSON.stringify(sender, receiver));
+
+    const result = await sendPayment(SENDER_PUB_KEY, RECEIVER_PUB_KEY, SENDER_SECRET, RECEIVER_SECRET);
+    console.log(JSON.stringify(result, null, 4));
 })();

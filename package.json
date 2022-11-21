@@ -1,0 +1,14 @@
+{
+  "name": "stellar-playground",
+  "version": "1.0.0",
+  "description": "running some stellar experiments",
+  "main": "script.js",
+  "author": "Enrique Goudet",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "dependencies": {
+    "node-fetch": "^3.3.0",
+    "stellar-sdk": "^10.4.0"
+  }
+}

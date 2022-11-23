@@ -1,5 +1,14 @@
-import StellarSdk from "stellar-sdk";
-import fetch from "node-fetch";
+// import StellarSdk from "stellar-sdk";
+import {
+    Keypair,
+    Account,
+    TransactionBuilder,
+    BASE_FEE,
+    Networks,
+    Operation,
+    Asset,
+    Server
+} from "stellar-sdk";
 
 ////////////////////////////////////////
 /*
@@ -11,120 +20,80 @@ receiver balance: https://testnet.steexp.com/account/GA6KRCI4GRNHXL4XPHDSIHI32A2
 ////////////////////////////////////////
 
 
-async function createTestAccounts() {
-    const sender = StellarSdk.Keypair.random();
-    const receiver = StellarSdk.Keypair.random();
+// async function createTestAccounts() {
+//     const sender = Keypair.random();
+//     const receiver = Keypair.random();
+
+//     try {
+//         console.log(
+//             "Funding test accounts on the test network (takes a few seconds)…"
+//         );
+//         const responseSender = await fetch(
+//             `https://friendbot.stellar.org?addr=${sender.publicKey()}`
+//         );
+//         const responseReceiver = await fetch(
+//             `https://friendbot.stellar.org?addr=${receiver.publicKey()}`
+//         );
+//         const dataSender = await responseSender.json();
+//         const dataReceiver = await responseReceiver.json();
+
+//         console.log(`Sender Public Key: ${sender.publicKey()}`);
+//         console.log(`Sender Secret Key: ${sender.secret()}`);
+
+//         console.log(`Receiver Public Key: ${receiver.publicKey()}`);
+//         console.log(`Receiver Secret Key: ${receiver.secret()}`);
+
+//         return {
+//             sender,
+//             receiver,
+//         };
+//     } catch (e) {
+//         console.error("Oh no! Something went wrong:", e);
+//     }
+// }
+
+
+async function sendPayment(senderPubKey, receiverPubKey, senderSeceret) {
+
+    const AMOUNT = "1000";ß
+    const server = new Server("https://horizon-testnet.stellar.org");
 
     try {
-        console.log(
-            "Funding test accounts on the test network (takes a few seconds)…"
-        );
-        const responseSender = await fetch(
-            `https://friendbot.stellar.org?addr=${sender.publicKey()}`
-        );
-        const responseReceiver = await fetch(
-            `https://friendbot.stellar.org?addr=${receiver.publicKey()}`
-        );
-        const dataSender = await responseSender.json();
-        const dataReceiver = await responseReceiver.json();
+        const senderKeyPair = Keypair.fromSecret(senderSeceret);
+        const sequence = await server.accounts().accountId(senderKeyPair.publicKey()).call();
 
-        console.log(`Sender Public Key: ${sender.publicKey()}`);
-        console.log(`Sender Secret Key: ${sender.secret()}`);
+        const senderAccount = new Account(senderKeyPair.publicKey(), sequence.sequence);
 
-        console.log(`Receiver Public Key: ${receiver.publicKey()}`);
-        console.log(`Receiver Secret Key: ${receiver.secret()}`);
-
-        return {
-            sender,
-            receiver,
-        };
-    } catch (e) {
-        console.error("Oh no! Something went wrong:", e);
-    }
-}
-
-
-async function sendPayment(senderPubKey, receiverPubKey, senderSeceret, receiverSecret) {
-
-    const server = new StellarSdk.Server("https://horizon-testnet.stellar.org");
-    const AMOUNT = "1000";
-
-
-    const senderKeyPair = StellarSdk.Keypair.fromSecret(senderSeceret);
-    const receiverKeyPair = StellarSdk.Keypair.fromSecret(receiverSecret);
-
-    let sender;
-    let receiver;
-    try {
-        [
-            sender,
-            receiver
-        ] = await Promise.all([
-            server.loadAccount(senderKeyPair.publicKey()),
-            server.loadAccount(receiverKeyPair.publicKey())
-        ]);
-
-    } catch (error) {
-        if (error instanceof StellarSdk.NotFoundError) {
-            return {
-                message: 'The account does not exist!',
-                Error: error
-            }
-        } else {
-            return {
-                message: 'Error getting accounts',
-                Error: error
-            }
-        }
-    }
-
-    try {
-        const transaction = new StellarSdk.TransactionBuilder(sender, {
-            fee: StellarSdk.BASE_FEE,
-            networkPassphrase: StellarSdk.Networks.TESTNET,
-        })
-            .addOperation(
-                StellarSdk.Operation.payment({
-                    destination: receiverPubKey,
-                    asset: StellarSdk.Asset.native(),
-                    amount: AMOUNT,
-                }),
-            )
-            .setTimeout(180)
+        const transaction = new TransactionBuilder(senderAccount, {
+            fee: BASE_FEE,
+            networkPassphrase: Networks.TESTNET,
+        }).addOperation(
+            Operation.payment({
+                destination: receiverPubKey,
+                asset: Asset.native(),
+                amount: AMOUNT,
+            }),
+        ).setTimeout(0)
             .build();
 
-        // THIS IS THE PROBLEMATIC LINE
-        transaction.sign(sender);
+        transaction.sign(senderKeyPair);
 
         console.log({
-            message: 'Transaction object',
-            transaction
-        });
+            message: 'Transaction successfully created and signed 🤙'
+        })
 
-    } catch (err) {
-        return {
-            message: 'Failure while creating transaction object',
-            Error: err,
-        }
-    }
-
-    // Submit the transaction to the Stellar network.
-    try {
         const transactionResult = await server.submitTransaction(transaction);
-        console.log('🚀🚀🚀 Transaction Result: ', transactionResult);
+        console.log(`🚀🚀🚀 Transaction submitted to ${Networks.TESTNET}`);
 
-        recoupLumens(senderPubKey.secret());
-
-        return {
+        console.log({
             message: `Success! ${senderPubKey} paid ${receiverPubKey} ${AMOUNT} XLM`,
             amount: AMOUNT
-        };
+        });
 
-    } catch (err) {
-        return {
-            message: 'Failure while submitting transaction to Stellar network',
-            Error: err
-        };
+        return;
+
+    } catch (error) {
+        console.log('Error: ', error)
     }
 }
 
@@ -132,9 +101,12 @@ async function sendPayment(senderPubKey, receiverPubKey, senderSeceret, receiver
     const SENDER_PUB_KEY = 'GAFYZELIQ7WKORXKJDGJXLKS3ESZYYEOQPVFQI4UYU47S2FSQF4AZIPN';
     const RECEIVER_PUB_KEY = 'GAN2LVEAZAT7YUO3HXX2PS6S4QVMMJQ2ODZG5K3ZAWUWT3LXFI56S3TH';
 
+
     // const { sender, receiver } = await createTestAccounts();
     // console.log(JSON.stringify(sender, receiver));
 
-    const result = await sendPayment(SENDER_PUB_KEY, RECEIVER_PUB_KEY, SENDER_SECRET, RECEIVER_SECRET);
-    console.log(JSON.stringify(result, null, 4));
+    await sendPayment(SENDER_PUB_KEY, RECEIVER_PUB_KEY, SENDER_SECRET);
+
+    process.exit(0);
 })();
+

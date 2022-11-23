@@ -2,7 +2,7 @@
   "name": "stellar-playground",
   "version": "1.0.0",
   "description": "running some stellar experiments",
-  "main": "script.js",
+  "main": "index.js",
   "author": "Enrique Goudet",
   "license": "MIT",
   "private": false,

@@ -55,7 +55,7 @@ receiver balance: https://testnet.steexp.com/account/GA6KRCI4GRNHXL4XPHDSIHI32A2
 
 async function sendPayment(senderPubKey, receiverPubKey, senderSeceret) {
 
-    const AMOUNT = "1000";ß
+    const AMOUNT = "1000";
     const server = new Server("https://horizon-testnet.stellar.org");
 
     try {
